@@ -6,13 +6,22 @@ export const samplePlayable: PlayableManifest = {
   kind: "movie",
   sources: [
     {
-      id: "local-source",
-      src: "/lab-media/qualification-movie.mp4",
+      id: "local-qualification-source",
+      src: "/api/qualification/media",
       mimeType: "video/mp4",
       label: "Local qualification source",
     },
   ],
-  subtitles: [],
+  subtitles: [
+    {
+      id: "local-nl",
+      language: "nl",
+      label: "Nederlands",
+      src: "/api/qualification/subtitle",
+      format: "vtt",
+      default: true,
+    },
+  ],
   capabilities: {
     pictureInPicture: true,
     playbackSpeed: true,
