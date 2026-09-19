@@ -184,6 +184,95 @@ function formatTime(value: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+
+function PlayIcon() {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5.6v12.8L18 12 8 5.6Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="5" width="3.5" height="14" rx="1" fill="currentColor" />
+      <rect x="13.5" y="5" width="3.5" height="14" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SkipBackIcon() {
+  return (
+    <svg className="player-control-icon player-control-icon--skip" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9.3 7.2H5.8V3.8M6.1 7.1a7.2 7.2 0 1 1-1.2 7.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="12" y="15" textAnchor="middle" fontSize="7" fontWeight="700" fill="currentColor">10</text>
+    </svg>
+  );
+}
+
+function SkipForwardIcon() {
+  return (
+    <svg className="player-control-icon player-control-icon--skip" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14.7 7.2h3.5V3.8M17.9 7.1a7.2 7.2 0 1 0 1.2 7.4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="12" y="15" textAnchor="middle" fontSize="7" fontWeight="700" fill="currentColor">10</text>
+    </svg>
+  );
+}
+
+function VolumeIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor" />
+      {muted ? (
+        <>
+          <path d="m16 9 5 6M21 9l-5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M16 9.2a4 4 0 0 1 0 5.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M18.6 7a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function CastIcon() {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M4 16.5a3.5 3.5 0 0 1 3.5 3.5M4 12.5A7.5 7.5 0 0 1 11.5 20M4 20h.01" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PiPIcon() {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <rect x="12" y="11.5" width="6" height="4.5" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function FullscreenIcon() {
+  return (
+    <svg className="player-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8.5 4.5h-4v4M15.5 4.5h4v4M4.5 15.5v4h4M19.5 15.5v4h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ReplayIcon() {
+  return (
+    <svg className="player-replay-icon" viewBox="0 0 48 48" aria-hidden="true">
+      <path className="player-replay-ring" d="M36.2 14.2A16 16 0 1 1 24 8c4.4 0 8.4 1.8 11.3 4.7M36 7v8h-8" fill="none" stroke="currentColor" strokeWidth="3.1" strokeLinecap="round" strokeLinejoin="round" />
+      <path className="player-replay-play" d="M21 18.2v11.6L30 24l-9-5.8Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function CineWatchPlayer({
   manifest,
 }: CineWatchPlayerProps) {
@@ -194,6 +283,7 @@ export function CineWatchPlayer({
   const hudTimerRef = useRef<number | null>(null);
   const screenshotTimerRef = useRef<number | null>(null);
   const tapTimerRef = useRef<number | null>(null);
+  const replayTimerRef = useRef<number | null>(null);
 
   const gestureRef = useRef<GestureSession | null>(null);
   const recoveryRef = useRef<RecoverySnapshot | null>(null);
@@ -231,6 +321,7 @@ export function CineWatchPlayer({
     useState<GestureHud | null>(null);
   const [screenshotFlash, setScreenshotFlash] =
     useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
   const [runtimeState, setRuntimeState] =
@@ -303,6 +394,10 @@ export function CineWatchPlayer({
 
       if (tapTimerRef.current !== null) {
         window.clearTimeout(tapTimerRef.current);
+      }
+
+      if (replayTimerRef.current !== null) {
+        window.clearTimeout(replayTimerRef.current);
       }
     };
   }, [clearControlsTimer]);
@@ -640,6 +735,39 @@ export function CineWatchPlayer({
       setErrorMessage("Playback could not be started.");
     }
   }, []);
+
+  const replayFromBeginning = useCallback(async () => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+
+    setErrorMessage(null);
+    setIsReplaying(true);
+    revealControls();
+
+    try {
+      video.currentTime = 0;
+      setCurrentTime(0);
+      setRuntimeState("loading");
+      await video.play();
+
+      replayTimerRef.current = window.setTimeout(() => {
+        setIsReplaying(false);
+        replayTimerRef.current = null;
+      }, 520);
+    } catch {
+      setIsReplaying(false);
+      setRuntimeState("paused");
+      setErrorMessage("Playback could not be restarted.");
+    }
+  }, [revealControls]);
 
   const seekBy = useCallback(
     (seconds: number) => {
@@ -1406,13 +1534,7 @@ export function CineWatchPlayer({
       tabIndex={0}
     >
       <header className="player-header">
-        <div>
-          <p className="player-eyebrow">
-            CineWatch Player Lab
-          </p>
-
-          <h1>{playable.title}</h1>
-        </div>
+        <h1>{playable.title}</h1>
 
         {playable.episodeLabel ? (
           <span className="episode-label">
@@ -1701,7 +1823,7 @@ export function CineWatchPlayer({
               void togglePlayback()
             }
           >
-            ▶
+            <PlayIcon />
           </button>
         ) : null}
 
@@ -1717,13 +1839,23 @@ export function CineWatchPlayer({
           </div>
         ) : null}
 
-        {runtimeState === "ended" ? (
-          <div
-            className="player-runtime-message"
-            role="status"
+        {runtimeState === "ended" || isReplaying ? (
+          <button
+            type="button"
+            className={[
+              "player-replay-button",
+              isReplaying
+                ? "player-replay-button--active"
+                : "",
+            ].join(" ")}
+            aria-label="Replay from beginning"
+            disabled={isReplaying}
+            onClick={() => {
+              void replayFromBeginning();
+            }}
           >
-            Playback ended
-          </div>
+            <ReplayIcon />
+          </button>
         ) : null}
 
         {!isOnline ? (
@@ -1807,7 +1939,7 @@ export function CineWatchPlayer({
                   void togglePlayback()
                 }
               >
-                {isPlaying ? "❚❚" : "▶"}
+                {isPlaying ? <PauseIcon /> : <PlayIcon />}
               </button>
 
               <button
@@ -1819,7 +1951,7 @@ export function CineWatchPlayer({
                   revealControls();
                 }}
               >
-                −10
+                <SkipBackIcon />
               </button>
 
               <button
@@ -1831,7 +1963,7 @@ export function CineWatchPlayer({
                   revealControls();
                 }}
               >
-                +10
+                <SkipForwardIcon />
               </button>
 
               <button
@@ -1844,7 +1976,7 @@ export function CineWatchPlayer({
                 }
                 onClick={toggleMute}
               >
-                {isMuted ? "🔇" : "🔊"}
+                <VolumeIcon muted={isMuted} />
               </button>
 
               <input
@@ -1970,9 +2102,7 @@ export function CineWatchPlayer({
                   void requestCast();
                 }}
               >
-                {castState === "connected"
-                  ? "Cast ✓"
-                  : "Cast"}
+                <CastIcon />
               </button>
 
               {playable.capabilities
@@ -1987,7 +2117,7 @@ export function CineWatchPlayer({
                     void togglePictureInPicture();
                   }}
                 >
-                  PiP
+                  <PiPIcon />
                 </button>
               ) : null}
 
@@ -2001,30 +2131,26 @@ export function CineWatchPlayer({
                   void toggleFullscreen();
                 }}
               >
-                ⛶
+                <FullscreenIcon />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <footer className="player-status">
-        <span>
-          {playable.playableId}
-        </span>
+      <details className="player-diagnostics">
+        <summary>Qualification diagnostics</summary>
 
-        <span>{playable.kind}</span>
-
-        <span>
-          {playable.sources.length}
-          {" "}source(s)
-        </span>
-
-        <span>
-          {playable.subtitles.length}
-          {" "}subtitle track(s)
-        </span>
-      </footer>
+        <dl>
+          <div><dt>Playable</dt><dd>{playable.playableId}</dd></div>
+          <div><dt>Type</dt><dd>{playable.kind}</dd></div>
+          <div><dt>Sources</dt><dd>{playable.sources.length}</dd></div>
+          <div><dt>Subtitles</dt><dd>{playable.subtitles.length}</dd></div>
+          <div><dt>Runtime</dt><dd>{runtimeState}</dd></div>
+          <div><dt>Network</dt><dd>{isOnline ? "online" : "offline"}</dd></div>
+          <div><dt>Cast</dt><dd>{castState}</dd></div>
+        </dl>
+      </details>
     </section>
   );
 }
