@@ -141,3 +141,294 @@ h1 {
     border-radius: 12px;
   }
 }
+
+/* ============================================================
+   CineWatch Player custom controls
+   ============================================================ */
+
+.cinewatch-video-frame {
+  position: relative;
+}
+
+.video-element {
+  object-fit: contain;
+}
+
+.player-controls {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 48px 18px 16px;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent,
+      rgba(0, 0, 0, 0.3) 20%,
+      rgba(0, 0, 0, 0.92)
+    );
+}
+
+.player-seek {
+  width: 100%;
+  margin: 0;
+  accent-color: #ffffff;
+  cursor: pointer;
+}
+
+.player-time-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.player-control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.player-control-group-right {
+  justify-content: flex-end;
+}
+
+.player-control-button,
+.player-select {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(13, 17, 23, 0.86);
+  color: #ffffff;
+  font: inherit;
+}
+
+.player-control-button {
+  min-width: 40px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.player-control-button:hover,
+.player-control-button:focus-visible,
+.player-select:focus-visible {
+  border-color: rgba(255, 255, 255, 0.7);
+  outline: none;
+}
+
+.player-skip-button {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-select {
+  padding: 0 9px;
+  cursor: pointer;
+}
+
+.player-speed {
+  min-width: 64px;
+}
+
+.player-volume {
+  width: 90px;
+  accent-color: #ffffff;
+}
+
+.player-center-action {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #07090c;
+  font-size: 2rem;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.player-buffering {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffffff;
+  transform: translate(-50%, -50%);
+}
+
+.player-error {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 120, 120, 0.7);
+  border-radius: 12px;
+  background: rgba(45, 8, 8, 0.92);
+  color: #ffffff;
+}
+
+.player-shell:focus {
+  outline: none;
+}
+
+.player-shell:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.cinewatch-video-frame:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  background: #000000;
+}
+
+.cinewatch-video-frame:fullscreen .video-element {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 760px) {
+  .player-controls {
+    padding: 40px 10px 10px;
+  }
+
+  .player-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .player-control-group,
+  .player-control-group-right {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .player-volume {
+    flex: 1;
+    min-width: 54px;
+  }
+
+  .player-select {
+    min-width: 0;
+    max-width: 132px;
+  }
+
+  .player-center-action {
+    width: 66px;
+    height: 66px;
+    font-size: 1.6rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .player-control-button {
+    min-width: 36px;
+    padding: 0 7px;
+  }
+
+  .player-skip-button {
+    min-width: 44px;
+  }
+
+  .player-volume {
+    display: none;
+  }
+
+  .player-select {
+    font-size: 0.78rem;
+  }
+}
+
+/* ============================================================
+   Player Foundation 001 R1 — caption presentation correction
+   ============================================================ */
+
+.player-controls {
+  z-index: 3;
+}
+
+.player-caption-layer {
+  position: absolute;
+  right: 7%;
+  bottom: 150px;
+  left: 7%;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+
+.player-caption-text {
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #ffffff;
+  font-size: clamp(0.9rem, 2.8vw, 1.35rem);
+  font-weight: 500;
+  line-height: 1.28;
+  white-space: pre-line;
+  text-shadow:
+    0 1px 2px #000000,
+    0 0 3px #000000;
+}
+
+.player-center-action,
+.player-buffering,
+.player-error {
+  z-index: 4;
+}
+
+@media (max-width: 760px) {
+  .player-caption-layer {
+    right: 5%;
+    bottom: 168px;
+    left: 5%;
+  }
+}
+
+@media (max-width: 430px) {
+  .player-caption-layer {
+    bottom: 160px;
+  }
+
+  .player-caption-text {
+    font-size: 0.82rem;
+  }
+}
+
+.cinewatch-video-frame:fullscreen .player-caption-layer {
+  right: 8%;
+  bottom: 165px;
+  left: 8%;
+}
+
+.cinewatch-video-frame:fullscreen .player-caption-text {
+  font-size: clamp(1rem, 3.3vw, 1.6rem);
+}
