@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { PlayableManifest } from "@/lib/playable/types";
 import { assertPlayableManifest } from "@/lib/playable/validate";
@@ -104,6 +105,60 @@ const CONTROLS_HIDE_MS = 3200;
 const BRIGHTNESS_MIN = 0.35;
 const BRIGHTNESS_MAX = 1.65;
 
+function subscribeNetworkStatus(
+  notify: () => void,
+): () => void {
+  const handleNetworkChange = () => {
+    notify();
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "visible") {
+      notify();
+    }
+  };
+
+  window.addEventListener("online", handleNetworkChange);
+  window.addEventListener("offline", handleNetworkChange);
+  window.addEventListener("focus", handleNetworkChange);
+  window.addEventListener("pageshow", handleNetworkChange);
+  document.addEventListener(
+    "visibilitychange",
+    handleVisibilityChange,
+  );
+
+  return () => {
+    window.removeEventListener(
+      "online",
+      handleNetworkChange,
+    );
+    window.removeEventListener(
+      "offline",
+      handleNetworkChange,
+    );
+    window.removeEventListener(
+      "focus",
+      handleNetworkChange,
+    );
+    window.removeEventListener(
+      "pageshow",
+      handleNetworkChange,
+    );
+    document.removeEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+  };
+}
+
+function getNetworkSnapshot(): boolean {
+  return navigator.onLine;
+}
+
+function getServerNetworkSnapshot(): boolean {
+  return true;
+}
+
 function clamp(
   value: number,
   minimum: number,
@@ -182,12 +237,11 @@ export function CineWatchPlayer({
     useState<RuntimeState>("idle");
   const [castState, setCastState] =
     useState<CastState>("unavailable");
-  const [isOnline, setIsOnline] =
-    useState(() =>
-      typeof navigator === "undefined"
-        ? true
-        : navigator.onLine,
-    );
+  const isOnline = useSyncExternalStore(
+    subscribeNetworkStatus,
+    getNetworkSnapshot,
+    getServerNetworkSnapshot,
+  );
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current !== null) {
@@ -255,7 +309,6 @@ export function CineWatchPlayer({
 
   useEffect(() => {
     const handleOnline = () => {
-      setIsOnline(true);
       showGestureHud(
         {
           label: "Network restored",
@@ -266,7 +319,6 @@ export function CineWatchPlayer({
     };
 
     const handleOffline = () => {
-      setIsOnline(false);
       showGestureHud(
         {
           label: "Network unavailable",
