@@ -1,0 +1,64 @@
+:root {
+  color-scheme: dark;
+  background: #05070a;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: #05070a;
+  color: #f5f7fa;
+}
+
+.lab-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.lab-panel {
+  width: min(720px, 100%);
+  padding: 32px;
+  border: 1px solid #303743;
+  border-radius: 24px;
+  background: #0c1016;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ba7b7;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(2rem, 7vw, 4rem);
+}
+
+.status-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid #303743;
+  border-radius: 16px;
+}
+
+.boundary {
+  margin: 24px 0 0;
+  color: #aab4c3;
+}
