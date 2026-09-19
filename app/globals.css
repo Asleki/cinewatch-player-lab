@@ -432,3 +432,146 @@ h1 {
 .cinewatch-video-frame:fullscreen .player-caption-text {
   font-size: clamp(1rem, 3.3vw, 1.6rem);
 }
+
+/* ============================================================
+   Act 5B — CineWatch interaction and gesture foundation
+   ============================================================ */
+
+.video-element {
+  transition: filter 120ms linear;
+}
+
+.player-gesture-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.player-controls {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.player-controls--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+}
+
+.cinewatch-video-frame.controls-hidden .player-caption-layer {
+  bottom: 7%;
+}
+
+.cinewatch-video-frame.controls-hidden:fullscreen .player-caption-layer {
+  bottom: 6%;
+}
+
+.player-gesture-hud {
+  position: absolute;
+  top: 50%;
+  z-index: 6;
+  display: grid;
+  width: min(180px, 38%);
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 14px;
+  background: rgba(5, 7, 10, 0.82);
+  color: #ffffff;
+  pointer-events: none;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.player-gesture-hud strong {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.player-gesture-hud--left {
+  left: 18%;
+  transform: translate(-50%, -50%);
+}
+
+.player-gesture-hud--center {
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.player-gesture-hud--right {
+  right: 18%;
+  transform: translate(50%, -50%);
+}
+
+.player-gesture-meter {
+  overflow: hidden;
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.player-gesture-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #ffffff;
+  transition: width 60ms linear;
+}
+
+.player-screenshot-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: #ffffff;
+  pointer-events: none;
+  animation:
+    cinewatch-screenshot-flash
+    170ms ease-out forwards;
+}
+
+@keyframes cinewatch-screenshot-flash {
+  0% {
+    opacity: 0;
+  }
+
+  28% {
+    opacity: 0.82;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .player-gesture-hud {
+    width: min(150px, 42%);
+    padding: 10px 12px;
+  }
+
+  .player-gesture-hud--left {
+    left: 23%;
+  }
+
+  .player-gesture-hud--right {
+    right: 23%;
+  }
+}
+
+@media (max-width: 430px) {
+  .player-gesture-hud {
+    width: min(138px, 44%);
+    border-radius: 12px;
+  }
+
+  .player-gesture-hud strong {
+    font-size: 0.78rem;
+  }
+}
