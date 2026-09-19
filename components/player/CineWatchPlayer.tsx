@@ -301,6 +301,11 @@ export function CineWatchPlayer({
   const screenshotTimerRef = useRef<number | null>(null);
   const tapTimerRef = useRef<number | null>(null);
   const replayTimerRef = useRef<number | null>(null);
+  const pipActiveRef = useRef(false);
+  const pipPlaybackIntentRef = useRef(false);
+  const pipExitRequestedRef = useRef(false);
+  const pipPauseIntentTimerRef = useRef<number | null>(null);
+  const pipResumeTimerRef = useRef<number | null>(null);
   const holdSeekDelayRef = useRef<number | null>(null);
   const holdSeekIntervalRef = useRef<number | null>(null);
   const holdSeekStartedAtRef = useRef<number | null>(null);
@@ -438,6 +443,167 @@ export function CineWatchPlayer({
       }
     };
   }, [clearControlsTimer]);
+
+  // Act 5B.3 PiP Playback Continuity R1
+  useEffect(() => {
+    const video = videoRef.current as PiPVideo | null;
+    const pipDocument = document as PiPDocument;
+
+    if (!video) {
+      return;
+    }
+
+    const clearPauseIntentTimer = () => {
+      if (pipPauseIntentTimerRef.current !== null) {
+        window.clearTimeout(pipPauseIntentTimerRef.current);
+        pipPauseIntentTimerRef.current = null;
+      }
+    };
+
+    const clearResumeTimer = () => {
+      if (pipResumeTimerRef.current !== null) {
+        window.clearTimeout(pipResumeTimerRef.current);
+        pipResumeTimerRef.current = null;
+      }
+    };
+
+    const reconcilePiPExit = () => {
+      if (!pipActiveRef.current) {
+        return;
+      }
+
+      clearPauseIntentTimer();
+      clearResumeTimer();
+
+      const shouldResume = pipPlaybackIntentRef.current;
+
+      pipActiveRef.current = false;
+      pipExitRequestedRef.current = false;
+
+      if (!shouldResume || video.ended) {
+        return;
+      }
+
+      // Let the platform finish its PiP teardown first. Some Android
+      // builds issue a transient pause during that transition.
+      pipResumeTimerRef.current = window.setTimeout(() => {
+        pipResumeTimerRef.current = null;
+
+        if (!video.paused || video.ended) {
+          return;
+        }
+
+        void video.play().catch(() => {
+          setErrorMessage(
+            "Playback is ready. Tap play to continue.",
+          );
+        });
+      }, 120);
+    };
+
+    const handleEnterPictureInPicture: EventListener = () => {
+      clearPauseIntentTimer();
+      clearResumeTimer();
+
+      pipActiveRef.current = true;
+      pipExitRequestedRef.current = false;
+      pipPlaybackIntentRef.current =
+        !video.paused && !video.ended;
+    };
+
+    const handlePlay: EventListener = () => {
+      if (!pipActiveRef.current) {
+        return;
+      }
+
+      clearPauseIntentTimer();
+      pipPlaybackIntentRef.current = true;
+    };
+
+    const handlePause: EventListener = () => {
+      if (!pipActiveRef.current) {
+        return;
+      }
+
+      clearPauseIntentTimer();
+
+      if (pipExitRequestedRef.current) {
+        return;
+      }
+
+      // A genuine pause persists while PiP remains active. A platform
+      // teardown pause is normally followed immediately by PiP exit,
+      // which cancels this timer before it changes user intent.
+      pipPauseIntentTimerRef.current = window.setTimeout(() => {
+        pipPauseIntentTimerRef.current = null;
+
+        if (
+          pipActiveRef.current &&
+          pipDocument.pictureInPictureElement === video
+        ) {
+          pipPlaybackIntentRef.current = false;
+        }
+      }, 120);
+    };
+
+    const handleLeavePictureInPicture: EventListener = () => {
+      reconcilePiPExit();
+    };
+
+    const handleReturnToPage = () => {
+      if (
+        pipActiveRef.current &&
+        pipDocument.pictureInPictureElement !== video
+      ) {
+        reconcilePiPExit();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleReturnToPage();
+      }
+    };
+
+    video.addEventListener(
+      "enterpictureinpicture",
+      handleEnterPictureInPicture,
+    );
+    video.addEventListener(
+      "leavepictureinpicture",
+      handleLeavePictureInPicture,
+    );
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    window.addEventListener("focus", handleReturnToPage);
+    window.addEventListener("pageshow", handleReturnToPage);
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+
+    return () => {
+      clearPauseIntentTimer();
+      clearResumeTimer();
+
+      video.removeEventListener(
+        "enterpictureinpicture",
+        handleEnterPictureInPicture,
+      );
+      video.removeEventListener(
+        "leavepictureinpicture",
+        handleLeavePictureInPicture,
+      );
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      window.removeEventListener("focus", handleReturnToPage);
+      window.removeEventListener("pageshow", handleReturnToPage);
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -1211,11 +1377,14 @@ export function CineWatchPlayer({
         pipDocument.pictureInPictureElement &&
         pipDocument.exitPictureInPicture
       ) {
+        pipExitRequestedRef.current = true;
         await pipDocument.exitPictureInPicture();
       } else if (video.requestPictureInPicture) {
+        pipExitRequestedRef.current = false;
         await video.requestPictureInPicture();
       }
     } catch {
+      pipExitRequestedRef.current = false;
       setErrorMessage(
         "Picture-in-Picture could not be started.",
       );
