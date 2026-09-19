@@ -718,3 +718,93 @@ h1 {
   .player-select { min-height: 36px; font-size: .72rem; }
   .player-speed { min-width: 50px; }
 }
+
+/* ============================================================
+   Act 5B.3 D002 — advanced seeking engine
+   ============================================================ */
+
+.player-seek-shell {
+  position: relative;
+  width: 100%;
+}
+
+.player-seek-preview {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  z-index: 9;
+  overflow: hidden;
+  width: 160px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(5, 7, 10, 0.94);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.player-seek-preview-frame {
+  overflow: hidden;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.015)
+    ),
+    #05070a;
+}
+
+.player-seek-preview-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player-seek-preview-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.09),
+      transparent 58%
+    );
+}
+
+.player-seek-preview-time {
+  display: block;
+  padding: 5px 8px 6px;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: center;
+}
+
+.cinewatch-video-frame:fullscreen .player-seek-preview {
+  width: 190px;
+}
+
+@media (max-width: 760px) {
+  .player-seek-preview {
+    bottom: calc(100% + 8px);
+    width: 132px;
+    border-radius: 9px;
+  }
+
+  .player-seek-preview-time {
+    padding: 4px 7px 5px;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .player-seek-preview {
+    width: 118px;
+  }
+}

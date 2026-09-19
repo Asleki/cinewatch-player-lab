@@ -79,7 +79,11 @@ type GestureMode =
   | "pending"
   | "brightness"
   | "volume"
+  | "horizontal-seek"
+  | "hold-seek"
   | "ignored";
+
+type SeekDirection = -1 | 1;
 
 type GestureSession = {
   pointerId: number;
@@ -88,6 +92,7 @@ type GestureSession = {
   startAt: number;
   startBrightness: number;
   startVolume: number;
+  startMediaTime: number;
   mode: GestureMode;
 };
 
@@ -97,10 +102,22 @@ type GestureHud = {
   meter?: number;
 };
 
+type SeekPreview = {
+  time: number;
+  percent: number;
+  image: string | null;
+};
+
 const TAP_WINDOW_MS = 285;
 const TAP_MOVEMENT_LIMIT_PX = 14;
 const SWIPE_THRESHOLD_PX = 12;
 const CONTROLS_HIDE_MS = 3200;
+
+const HOLD_SEEK_DELAY_MS = 460;
+const HOLD_SEEK_TICK_MS = 220;
+const SEEK_PREVIEW_CAPTURE_INTERVAL_MS = 150;
+const HORIZONTAL_SEEK_MIN_SECONDS = 90;
+const HORIZONTAL_SEEK_MAX_SECONDS = 300;
 
 const BRIGHTNESS_MIN = 0.35;
 const BRIGHTNESS_MAX = 1.65;
@@ -284,6 +301,12 @@ export function CineWatchPlayer({
   const screenshotTimerRef = useRef<number | null>(null);
   const tapTimerRef = useRef<number | null>(null);
   const replayTimerRef = useRef<number | null>(null);
+  const holdSeekDelayRef = useRef<number | null>(null);
+  const holdSeekIntervalRef = useRef<number | null>(null);
+  const holdSeekStartedAtRef = useRef<number | null>(null);
+  const seekPreviewHideTimerRef = useRef<number | null>(null);
+  const seekPreviewCaptureAtRef = useRef(0);
+  const timelineScrubbingRef = useRef(false);
 
   const gestureRef = useRef<GestureSession | null>(null);
   const recoveryRef = useRef<RecoverySnapshot | null>(null);
@@ -322,6 +345,8 @@ export function CineWatchPlayer({
   const [screenshotFlash, setScreenshotFlash] =
     useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [seekPreview, setSeekPreview] =
+    useState<SeekPreview | null>(null);
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
   const [runtimeState, setRuntimeState] =
@@ -398,6 +423,18 @@ export function CineWatchPlayer({
 
       if (replayTimerRef.current !== null) {
         window.clearTimeout(replayTimerRef.current);
+      }
+
+      if (holdSeekDelayRef.current !== null) {
+        window.clearTimeout(holdSeekDelayRef.current);
+      }
+
+      if (holdSeekIntervalRef.current !== null) {
+        window.clearInterval(holdSeekIntervalRef.current);
+      }
+
+      if (seekPreviewHideTimerRef.current !== null) {
+        window.clearTimeout(seekPreviewHideTimerRef.current);
       }
     };
   }, [clearControlsTimer]);
@@ -769,12 +806,12 @@ export function CineWatchPlayer({
     }
   }, [revealControls]);
 
-  const seekBy = useCallback(
-    (seconds: number) => {
+  const seekToTime = useCallback(
+    (value: number): number | null => {
       const video = videoRef.current;
 
       if (!video) {
-        return;
+        return null;
       }
 
       const mediaDuration =
@@ -784,31 +821,311 @@ export function CineWatchPlayer({
           : duration;
 
       if (mediaDuration <= 0) {
-        return;
+        return null;
       }
 
-      video.currentTime = clamp(
-        video.currentTime + seconds,
+      const nextTime = clamp(
+        value,
         0,
         mediaDuration,
       );
+
+      video.currentTime = nextTime;
+      setCurrentTime(nextTime);
+
+      return nextTime;
     },
     [duration],
   );
 
-  const handleSeek = (value: number) => {
-    const video = videoRef.current;
+  const seekBy = useCallback(
+    (seconds: number): number | null => {
+      const video = videoRef.current;
 
-    if (!video || duration <= 0) {
+      if (!video) {
+        return null;
+      }
+
+      return seekToTime(
+        video.currentTime + seconds,
+      );
+    },
+    [seekToTime],
+  );
+
+  const handleSeek = (value: number) => {
+    if (seekToTime(value) === null) {
       return;
     }
 
-    const nextTime = clamp(value, 0, duration);
-
-    video.currentTime = nextTime;
-    setCurrentTime(nextTime);
     revealControls();
   };
+
+  const clearHoldSeekDelay = useCallback(() => {
+    if (holdSeekDelayRef.current !== null) {
+      window.clearTimeout(holdSeekDelayRef.current);
+      holdSeekDelayRef.current = null;
+    }
+  }, []);
+
+  const stopHoldSeeking = useCallback(() => {
+    clearHoldSeekDelay();
+
+    if (holdSeekIntervalRef.current !== null) {
+      window.clearInterval(holdSeekIntervalRef.current);
+      holdSeekIntervalRef.current = null;
+    }
+
+    holdSeekStartedAtRef.current = null;
+  }, [clearHoldSeekDelay]);
+
+  const beginHoldSeeking = useCallback(
+    (direction: SeekDirection) => {
+      const session = gestureRef.current;
+
+      if (!session || session.mode !== "pending") {
+        return;
+      }
+
+      session.mode = "hold-seek";
+      holdSeekDelayRef.current = null;
+      holdSeekStartedAtRef.current = performance.now();
+      clearControlsTimer();
+
+      const tick = () => {
+        const activeSession = gestureRef.current;
+        const startedAt = holdSeekStartedAtRef.current;
+
+        if (
+          !activeSession ||
+          activeSession.mode !== "hold-seek" ||
+          startedAt === null
+        ) {
+          stopHoldSeeking();
+          return;
+        }
+
+        const elapsed = performance.now() - startedAt;
+        const acceleration =
+          elapsed >= 5000
+            ? 12
+            : elapsed >= 3000
+              ? 8
+              : elapsed >= 1500
+                ? 4
+                : 2;
+
+        const nextTime = seekBy(
+          direction * acceleration,
+        );
+
+        if (nextTime === null) {
+          stopHoldSeeking();
+          return;
+        }
+
+        const video = videoRef.current;
+        const mediaDuration =
+          video &&
+          Number.isFinite(video.duration) &&
+          video.duration > 0
+            ? video.duration
+            : duration;
+
+        showGestureHud(
+          {
+            label:
+              `${direction < 0 ? "Rewind" : "Forward"} ${acceleration}× • ${formatTime(nextTime)}`,
+            side: direction < 0 ? "left" : "right",
+            meter:
+              mediaDuration > 0
+                ? (nextTime / mediaDuration) * 100
+                : undefined,
+          },
+          HOLD_SEEK_TICK_MS + 180,
+        );
+      };
+
+      tick();
+      holdSeekIntervalRef.current = window.setInterval(
+        tick,
+        HOLD_SEEK_TICK_MS,
+      );
+    },
+    [
+      clearControlsTimer,
+      duration,
+      seekBy,
+      showGestureHud,
+      stopHoldSeeking,
+    ],
+  );
+
+  const setSeekPreviewTime = useCallback(
+    (value: number) => {
+      if (duration <= 0) {
+        return;
+      }
+
+      const time = clamp(value, 0, duration);
+      const percent = (time / duration) * 100;
+
+      setSeekPreview((current) => ({
+        time,
+        percent,
+        image:
+          current &&
+          Math.abs(current.time - time) < 0.75
+            ? current.image
+            : null,
+      }));
+    },
+    [duration],
+  );
+
+  const captureSeekPreview = useCallback(
+    (video: HTMLVideoElement) => {
+      if (
+        !timelineScrubbingRef.current ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        video.videoWidth <= 0 ||
+        video.videoHeight <= 0
+      ) {
+        return;
+      }
+
+      const now = performance.now();
+
+      if (
+        now - seekPreviewCaptureAtRef.current <
+        SEEK_PREVIEW_CAPTURE_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      seekPreviewCaptureAtRef.current = now;
+      const captureTime = video.currentTime;
+
+      try {
+        const canvas = document.createElement("canvas");
+        const width = 224;
+        const height = Math.max(
+          90,
+          Math.round(
+            width *
+              (video.videoHeight / video.videoWidth),
+          ),
+        );
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          return;
+        }
+
+        context.drawImage(
+          video,
+          0,
+          0,
+          width,
+          height,
+        );
+
+        const image = canvas.toDataURL(
+          "image/jpeg",
+          0.72,
+        );
+
+        setSeekPreview((current) => {
+          if (
+            !current ||
+            Math.abs(current.time - captureTime) > 1.25
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            image,
+          };
+        });
+      } catch {
+        // Cross-origin/unsupported canvas capture gracefully falls
+        // back to a timestamp-only preview.
+        setSeekPreview((current) =>
+          current
+            ? {
+                ...current,
+                image: null,
+              }
+            : current,
+        );
+      }
+    },
+    [],
+  );
+
+  const beginTimelineScrub = useCallback(
+    (value: number) => {
+      if (seekPreviewHideTimerRef.current !== null) {
+        window.clearTimeout(
+          seekPreviewHideTimerRef.current,
+        );
+        seekPreviewHideTimerRef.current = null;
+      }
+
+      timelineScrubbingRef.current = true;
+      clearControlsTimer();
+      setControlsVisible(true);
+      setSeekPreviewTime(value);
+
+      const video = videoRef.current;
+
+      if (video) {
+        captureSeekPreview(video);
+      }
+    },
+    [
+      captureSeekPreview,
+      clearControlsTimer,
+      setSeekPreviewTime,
+    ],
+  );
+
+  const updateTimelineScrub = useCallback(
+    (value: number) => {
+      const nextTime = seekToTime(value);
+
+      if (nextTime === null) {
+        return;
+      }
+
+      setSeekPreviewTime(nextTime);
+    },
+    [seekToTime, setSeekPreviewTime],
+  );
+
+  const endTimelineScrub = useCallback(() => {
+    revealControls();
+
+    if (seekPreviewHideTimerRef.current !== null) {
+      window.clearTimeout(
+        seekPreviewHideTimerRef.current,
+      );
+    }
+
+    seekPreviewHideTimerRef.current = window.setTimeout(
+      () => {
+        timelineScrubbingRef.current = false;
+        setSeekPreview(null);
+        seekPreviewHideTimerRef.current = null;
+      },
+      280,
+    );
+  }, [revealControls]);
 
   const handleVolume = (value: number) => {
     const video = videoRef.current;
@@ -1229,11 +1546,24 @@ export function CineWatchPlayer({
   const handleGesturePointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
   ) => {
-    if (gestureRef.current !== null) {
+    if (
+      gestureRef.current !== null ||
+      !event.isPrimary ||
+      event.button !== 0
+    ) {
       return;
     }
 
     const video = videoRef.current;
+    const rect =
+      event.currentTarget.getBoundingClientRect();
+    const xRatio = clamp(
+      (event.clientX - rect.left) / rect.width,
+      0,
+      1,
+    );
+
+    stopHoldSeeking();
 
     gestureRef.current = {
       pointerId: event.pointerId,
@@ -1242,12 +1572,25 @@ export function CineWatchPlayer({
       startAt: performance.now(),
       startBrightness: brightness,
       startVolume: video?.volume ?? volume,
+      startMediaTime: video?.currentTime ?? currentTime,
       mode: "pending",
     };
 
     event.currentTarget.setPointerCapture(
       event.pointerId,
     );
+
+    if (duration > 0 && xRatio <= 0.42) {
+      holdSeekDelayRef.current = window.setTimeout(
+        () => beginHoldSeeking(-1),
+        HOLD_SEEK_DELAY_MS,
+      );
+    } else if (duration > 0 && xRatio >= 0.58) {
+      holdSeekDelayRef.current = window.setTimeout(
+        () => beginHoldSeeking(1),
+        HOLD_SEEK_DELAY_MS,
+      );
+    }
   };
 
   const handleGesturePointerMove = (
@@ -1274,11 +1617,21 @@ export function CineWatchPlayer({
     const absoluteX = Math.abs(deltaX);
     const absoluteY = Math.abs(deltaY);
 
+    if (
+      session.mode === "pending" &&
+      (absoluteX > TAP_MOVEMENT_LIMIT_PX ||
+        absoluteY > TAP_MOVEMENT_LIMIT_PX)
+    ) {
+      clearHoldSeekDelay();
+    }
+
     if (session.mode === "pending") {
       if (
         absoluteY >= SWIPE_THRESHOLD_PX &&
         absoluteY > absoluteX * 1.1
       ) {
+        clearHoldSeekDelay();
+
         const xRatio =
           (session.startX - rect.left) /
           rect.width;
@@ -1291,10 +1644,65 @@ export function CineWatchPlayer({
           session.mode = "ignored";
         }
       } else if (
-        absoluteX >= SWIPE_THRESHOLD_PX
+        absoluteX >= SWIPE_THRESHOLD_PX &&
+        absoluteX > absoluteY * 1.1
       ) {
-        session.mode = "ignored";
+        clearHoldSeekDelay();
+        session.mode = "horizontal-seek";
       }
+    }
+
+    if (session.mode === "horizontal-seek") {
+      event.preventDefault();
+
+      const video = videoRef.current;
+      const mediaDuration =
+        video &&
+        Number.isFinite(video.duration) &&
+        video.duration > 0
+          ? video.duration
+          : duration;
+
+      if (mediaDuration <= 0) {
+        session.mode = "ignored";
+        return;
+      }
+
+      const seekWindowSeconds = clamp(
+        mediaDuration * 0.1,
+        HORIZONTAL_SEEK_MIN_SECONDS,
+        HORIZONTAL_SEEK_MAX_SECONDS,
+      );
+
+      const nextTime = seekToTime(
+        session.startMediaTime +
+          (deltaX / rect.width) *
+            seekWindowSeconds,
+      );
+
+      if (nextTime === null) {
+        return;
+      }
+
+      const deltaTime =
+        nextTime - session.startMediaTime;
+
+      showGestureHud(
+        {
+          label:
+            `${deltaTime < 0 ? "Back" : "Forward"} ${formatTime(Math.abs(deltaTime))} • ${formatTime(nextTime)}`,
+          side: "center",
+          meter: (nextTime / mediaDuration) * 100,
+        },
+        520,
+      );
+
+      return;
+    }
+
+    if (session.mode === "hold-seek") {
+      event.preventDefault();
+      return;
     }
 
     if (session.mode === "brightness") {
@@ -1385,6 +1793,8 @@ export function CineWatchPlayer({
       return;
     }
 
+    stopHoldSeeking();
+
     if (
       event.currentTarget.hasPointerCapture(
         event.pointerId,
@@ -1450,6 +1860,7 @@ export function CineWatchPlayer({
     if (
       session?.pointerId === event.pointerId
     ) {
+      stopHoldSeeking();
       gestureRef.current = null;
     }
 
@@ -1627,12 +2038,27 @@ export function CineWatchPlayer({
             );
           }}
           onSeeking={() => {
-            setRuntimeState("seeking");
+            const gestureMode =
+              gestureRef.current?.mode;
+
+            if (
+              !timelineScrubbingRef.current &&
+              gestureMode !== "horizontal-seek" &&
+              gestureMode !== "hold-seek"
+            ) {
+              setRuntimeState("seeking");
+            }
           }}
           onSeeked={(event) => {
             updateActiveCaption(
               selectedSubtitle,
             );
+
+            if (timelineScrubbingRef.current) {
+              captureSeekPreview(
+                event.currentTarget,
+              );
+            }
 
             setRuntimeState(
               event.currentTarget.paused
@@ -1896,24 +2322,75 @@ export function CineWatchPlayer({
             revealControls();
           }}
         >
-          <input
-            className="player-seek"
-            type="range"
-            min={0}
-            max={seekMaximum}
-            step={0.1}
-            value={seekValue}
-            disabled={duration <= 0}
-            aria-label="Seek"
-            onChange={(event) => {
-              handleSeek(
-                Number(
-                  event.currentTarget
-                    .value,
-                ),
-              );
-            }}
-          />
+          <div className="player-seek-shell">
+            {seekPreview ? (
+              <div
+                className="player-seek-preview"
+                style={{
+                  left:
+                    `${clamp(seekPreview.percent, 10, 90)}%`,
+                }}
+                aria-hidden="true"
+              >
+                <div className="player-seek-preview-frame">
+                  {seekPreview.image ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                      src={seekPreview.image}
+                        alt=""
+                      />
+                    </>
+                  ) : (
+                    <span className="player-seek-preview-placeholder" />
+                  )}
+                </div>
+
+                <span className="player-seek-preview-time">
+                  {formatTime(seekPreview.time)}
+                </span>
+              </div>
+            ) : null}
+
+            <input
+              className="player-seek"
+              type="range"
+              min={0}
+              max={seekMaximum}
+              step={0.1}
+              value={seekValue}
+              disabled={duration <= 0}
+              aria-label="Seek"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                beginTimelineScrub(
+                  Number(event.currentTarget.value),
+                );
+              }}
+              onPointerUp={() => {
+                endTimelineScrub();
+              }}
+              onPointerCancel={() => {
+                endTimelineScrub();
+              }}
+              onBlur={() => {
+                if (timelineScrubbingRef.current) {
+                  endTimelineScrub();
+                }
+              }}
+              onChange={(event) => {
+                const value = Number(
+                  event.currentTarget.value,
+                );
+
+                if (timelineScrubbingRef.current) {
+                  updateTimelineScrub(value);
+                } else {
+                  handleSeek(value);
+                }
+              }}
+            />
+          </div>
 
           <div className="player-time-row">
             <span>
