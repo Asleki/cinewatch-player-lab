@@ -24,6 +24,56 @@ type PiPVideo = HTMLVideoElement & {
   requestPictureInPicture?: () => Promise<unknown>;
 };
 
+type RuntimeState =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "playing"
+  | "paused"
+  | "seeking"
+  | "buffering"
+  | "ended"
+  | "error";
+
+type CastState =
+  | "unavailable"
+  | "available"
+  | "connecting"
+  | "connected"
+  | "disconnected";
+
+type RemotePlaybackHandle = {
+  state?: "connecting" | "connected" | "disconnected";
+  prompt?: () => Promise<void>;
+  watchAvailability?: (
+    callback: (available: boolean) => void,
+  ) => Promise<number>;
+  cancelWatchAvailability?: (
+    callbackId?: number,
+  ) => Promise<void>;
+  addEventListener?: (
+    type: string,
+    listener: EventListener,
+  ) => void;
+  removeEventListener?: (
+    type: string,
+    listener: EventListener,
+  ) => void;
+};
+
+type CastVideo = HTMLVideoElement & {
+  remote?: RemotePlaybackHandle;
+};
+
+type RecoverySnapshot = {
+  currentTime: number;
+  shouldPlay: boolean;
+  volume: number;
+  muted: boolean;
+  playbackRate: number;
+  subtitleId: string;
+};
+
 type GestureMode =
   | "pending"
   | "brightness"
@@ -91,6 +141,7 @@ export function CineWatchPlayer({
   const tapTimerRef = useRef<number | null>(null);
 
   const gestureRef = useRef<GestureSession | null>(null);
+  const recoveryRef = useRef<RecoverySnapshot | null>(null);
 
   const tapStateRef = useRef({
     count: 0,
@@ -127,6 +178,16 @@ export function CineWatchPlayer({
     useState(false);
   const [errorMessage, setErrorMessage] =
     useState<string | null>(null);
+  const [runtimeState, setRuntimeState] =
+    useState<RuntimeState>("idle");
+  const [castState, setCastState] =
+    useState<CastState>("unavailable");
+  const [isOnline, setIsOnline] =
+    useState(() =>
+      typeof navigator === "undefined"
+        ? true
+        : navigator.onLine,
+    );
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current !== null) {
@@ -191,6 +252,123 @@ export function CineWatchPlayer({
       }
     };
   }, [clearControlsTimer]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showGestureHud(
+        {
+          label: "Network restored",
+          side: "center",
+        },
+        900,
+      );
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      showGestureHud(
+        {
+          label: "Network unavailable",
+          side: "center",
+        },
+        1200,
+      );
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [showGestureHud]);
+
+  useEffect(() => {
+    const video = videoRef.current as CastVideo | null;
+    const remote = video?.remote;
+
+    if (!remote) {
+      setCastState("unavailable");
+      return;
+    }
+
+    let availabilityId: number | undefined;
+
+    const handleConnecting: EventListener = () => {
+      setCastState("connecting");
+    };
+
+    const handleConnect: EventListener = () => {
+      setCastState("connected");
+      showGestureHud(
+        {
+          label: "Casting",
+          side: "center",
+        },
+        1200,
+      );
+    };
+
+    const handleDisconnect: EventListener = () => {
+      setCastState("disconnected");
+      showGestureHud(
+        {
+          label: "Cast disconnected",
+          side: "center",
+        },
+        1000,
+      );
+    };
+
+    remote.addEventListener?.("connecting", handleConnecting);
+    remote.addEventListener?.("connect", handleConnect);
+    remote.addEventListener?.("disconnect", handleDisconnect);
+
+    if (remote.watchAvailability) {
+      void remote
+        .watchAvailability((available) => {
+          setCastState((current) => {
+            if (
+              current === "connected" ||
+              current === "connecting"
+            ) {
+              return current;
+            }
+
+            return available ? "available" : "disconnected";
+          });
+        })
+        .then((id) => {
+          availabilityId = id;
+        })
+        .catch(() => {
+          setCastState("unavailable");
+        });
+    } else {
+      setCastState(
+        remote.state === "connected"
+          ? "connected"
+          : "available",
+      );
+    }
+
+    return () => {
+      remote.removeEventListener?.("connecting", handleConnecting);
+      remote.removeEventListener?.("connect", handleConnect);
+      remote.removeEventListener?.("disconnect", handleDisconnect);
+
+      if (
+        availabilityId !== undefined &&
+        remote.cancelWatchAvailability
+      ) {
+        void remote
+          .cancelWatchAvailability(availabilityId)
+          .catch(() => undefined);
+      }
+    };
+  }, [showGestureHud]);
 
   const captureDuration = useCallback(
     (video: HTMLVideoElement) => {
@@ -299,6 +477,72 @@ export function CineWatchPlayer({
     },
     [configureSubtitleTracks, updateActiveCaption],
   );
+
+  const restoreRecoverySnapshot = useCallback(
+    (video: HTMLVideoElement) => {
+      const snapshot = recoveryRef.current;
+
+      if (!snapshot) {
+        return;
+      }
+
+      recoveryRef.current = null;
+
+      const mediaDuration =
+        Number.isFinite(video.duration) &&
+        video.duration > 0
+          ? video.duration
+          : 0;
+
+      if (mediaDuration > 0) {
+        video.currentTime = clamp(
+          snapshot.currentTime,
+          0,
+          mediaDuration,
+        );
+      }
+
+      video.volume = clamp(snapshot.volume, 0, 1);
+      video.muted = snapshot.muted;
+      video.playbackRate = snapshot.playbackRate;
+
+      applySubtitleSelection(snapshot.subtitleId);
+
+      if (snapshot.shouldPlay) {
+        void video.play().catch(() => {
+          setRuntimeState("paused");
+          setErrorMessage(
+            "Playback recovered. Tap play to continue.",
+          );
+        });
+      }
+    },
+    [applySubtitleSelection],
+  );
+
+  const retryPlayback = useCallback(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    recoveryRef.current = {
+      currentTime: video.currentTime,
+      shouldPlay: !video.paused && !video.ended,
+      volume: video.volume,
+      muted: video.muted,
+      playbackRate: video.playbackRate,
+      subtitleId: selectedSubtitle,
+    };
+
+    setErrorMessage(null);
+    setIsBuffering(true);
+    setRuntimeState("loading");
+    revealControls();
+
+    video.load();
+  }, [revealControls, selectedSubtitle]);
 
   const toggleSubtitleShortcut = useCallback(() => {
     const nextSubtitle =
@@ -566,6 +810,80 @@ export function CineWatchPlayer({
     showGestureHud,
   ]);
 
+  const requestCast = useCallback(async () => {
+    const video = videoRef.current as CastVideo | null;
+    const remote = video?.remote;
+
+    if (!video || !remote?.prompt) {
+      setCastState("unavailable");
+      showGestureHud(
+        {
+          label: "Cast unavailable in this browser",
+          side: "center",
+        },
+        1300,
+      );
+      return;
+    }
+
+    const sourceValue =
+      video.currentSrc ||
+      playable.sources[0]?.src ||
+      "";
+
+    let receiverReachable = true;
+
+    try {
+      const sourceUrl = new URL(
+        sourceValue,
+        window.location.href,
+      );
+
+      receiverReachable = ![
+        "127.0.0.1",
+        "localhost",
+        "::1",
+      ].includes(sourceUrl.hostname);
+    } catch {
+      receiverReachable = false;
+    }
+
+    if (!receiverReachable) {
+      showGestureHud(
+        {
+          label:
+            "Cast UI qualified — Remote/R2 source required",
+          side: "center",
+        },
+        1600,
+      );
+      return;
+    }
+
+    try {
+      setCastState("connecting");
+      await remote.prompt();
+
+      if (remote.state === "connected") {
+        setCastState("connected");
+      }
+    } catch {
+      setCastState(
+        remote.state === "connected"
+          ? "connected"
+          : "available",
+      );
+
+      showGestureHud(
+        {
+          label: "Cast selection closed",
+          side: "center",
+        },
+        1000,
+      );
+    }
+  }, [playable.sources, showGestureHud]);
+
   const toggleControlsFromTap = useCallback(() => {
     const video = videoRef.current;
 
@@ -602,6 +920,23 @@ export function CineWatchPlayer({
       if (
         xRatio >= 0.33 &&
         xRatio <= 0.67 &&
+        yRatio <= 0.34
+      ) {
+        showGestureHud(
+          {
+            label: "Cast",
+            side: "center",
+          },
+          700,
+        );
+
+        void requestCast();
+        return;
+      }
+
+      if (
+        xRatio >= 0.33 &&
+        xRatio <= 0.67 &&
         yRatio >= 0.66
       ) {
         showGestureHud(
@@ -617,6 +952,7 @@ export function CineWatchPlayer({
     },
     [
       captureScreenshot,
+      requestCast,
       showGestureHud,
       togglePictureInPicture,
       toggleSubtitleShortcut,
@@ -992,6 +1328,11 @@ export function CineWatchPlayer({
         void togglePictureInPicture();
         break;
 
+      case "KeyC":
+        event.preventDefault();
+        void requestCast();
+        break;
+
       default:
         break;
     }
@@ -1047,6 +1388,10 @@ export function CineWatchPlayer({
             filter:
               `brightness(${brightness})`,
           }}
+          onLoadStart={() => {
+            setRuntimeState("loading");
+            setIsBuffering(true);
+          }}
           onLoadedMetadata={(event) => {
             const video =
               event.currentTarget;
@@ -1062,6 +1407,11 @@ export function CineWatchPlayer({
             updateActiveCaption(
               selectedSubtitle,
             );
+
+            restoreRecoverySnapshot(video);
+            setRuntimeState(
+              video.paused ? "ready" : "playing",
+            );
           }}
           onLoadedData={(event) => {
             captureDuration(
@@ -1074,11 +1424,19 @@ export function CineWatchPlayer({
             );
           }}
           onCanPlay={(event) => {
-            captureDuration(
-              event.currentTarget,
-            );
+            const video =
+              event.currentTarget;
 
+            captureDuration(video);
             setIsBuffering(false);
+
+            setRuntimeState(
+              video.paused
+                ? hasStarted
+                  ? "paused"
+                  : "ready"
+                : "playing",
+            );
           }}
           onTimeUpdate={(event) => {
             const video =
@@ -1094,15 +1452,25 @@ export function CineWatchPlayer({
               selectedSubtitle,
             );
           }}
-          onSeeked={() => {
+          onSeeking={() => {
+            setRuntimeState("seeking");
+          }}
+          onSeeked={(event) => {
             updateActiveCaption(
               selectedSubtitle,
+            );
+
+            setRuntimeState(
+              event.currentTarget.paused
+                ? "paused"
+                : "playing",
             );
           }}
           onPlay={() => {
             setIsPlaying(true);
             setHasStarted(true);
             setIsBuffering(false);
+            setRuntimeState("loading");
 
             setControlsVisible(true);
 
@@ -1110,14 +1478,23 @@ export function CineWatchPlayer({
               armControlsAutoHide();
             }, 0);
           }}
-          onPause={() => {
+          onPause={(event) => {
             setIsPlaying(false);
+
+            if (!event.currentTarget.ended) {
+              setRuntimeState("paused");
+            }
 
             clearControlsTimer();
             setControlsVisible(true);
           }}
           onWaiting={() => {
             setIsBuffering(true);
+            setRuntimeState("buffering");
+          }}
+          onStalled={() => {
+            setIsBuffering(true);
+            setRuntimeState("buffering");
           }}
           onPlaying={(event) => {
             captureDuration(
@@ -1125,11 +1502,13 @@ export function CineWatchPlayer({
             );
 
             setIsBuffering(false);
+            setRuntimeState("playing");
 
             armControlsAutoHide();
           }}
           onEnded={() => {
             setIsPlaying(false);
+            setRuntimeState("ended");
 
             clearControlsTimer();
             setControlsVisible(true);
@@ -1139,6 +1518,7 @@ export function CineWatchPlayer({
               "The playback source could not be loaded.",
             );
 
+            setRuntimeState("error");
             setIsPlaying(false);
             setIsBuffering(false);
 
@@ -1273,12 +1653,33 @@ export function CineWatchPlayer({
           </button>
         ) : null}
 
-        {isBuffering ? (
+        {isBuffering ||
+        runtimeState === "seeking" ? (
           <div
             className="player-buffering"
             role="status"
           >
-            Loading…
+            {runtimeState === "seeking"
+              ? "Seeking…"
+              : "Loading…"}
+          </div>
+        ) : null}
+
+        {runtimeState === "ended" ? (
+          <div
+            className="player-runtime-message"
+            role="status"
+          >
+            Playback ended
+          </div>
+        ) : null}
+
+        {!isOnline ? (
+          <div
+            className="player-network-state"
+            role="status"
+          >
+            Offline
           </div>
         ) : null}
 
@@ -1287,7 +1688,15 @@ export function CineWatchPlayer({
             className="player-error"
             role="alert"
           >
-            {errorMessage}
+            <span>{errorMessage}</span>
+
+            <button
+              type="button"
+              className="player-retry-button"
+              onClick={retryPlayback}
+            >
+              Retry
+            </button>
           </div>
         ) : null}
 
@@ -1487,6 +1896,32 @@ export function CineWatchPlayer({
                   </option>
                 </select>
               ) : null}
+
+              <button
+                type="button"
+                className={[
+                  "player-control-button",
+                  castState === "connected"
+                    ? "player-cast-button--active"
+                    : "",
+                ].join(" ")}
+                aria-label={
+                  castState === "connected"
+                    ? "Casting"
+                    : "Cast"
+                }
+                aria-pressed={
+                  castState === "connected"
+                }
+                onClick={() => {
+                  revealControls();
+                  void requestCast();
+                }}
+              >
+                {castState === "connected"
+                  ? "Cast ✓"
+                  : "Cast"}
+              </button>
 
               {playable.capabilities
                 .pictureInPicture ? (

@@ -575,3 +575,74 @@ h1 {
     font-size: 0.78rem;
   }
 }
+
+
+/* ============================================================
+   Act 5B.2 — Runtime state, resilience, and Cast qualification
+   ============================================================ */
+
+.player-runtime-message,
+.player-network-state {
+  position: absolute;
+  z-index: 5;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(5, 7, 10, 0.82);
+  color: #ffffff;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.player-runtime-message {
+  top: 50%;
+  left: 50%;
+  padding: 10px 16px;
+  transform: translate(-50%, -50%);
+}
+
+.player-network-state {
+  top: 14px;
+  left: 14px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.player-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.player-retry-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-retry-button:focus-visible,
+.player-retry-button:hover {
+  border-color: #ffffff;
+  outline: none;
+}
+
+.player-cast-button--active {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 430px) {
+  .player-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .player-retry-button {
+    align-self: flex-end;
+  }
+}
