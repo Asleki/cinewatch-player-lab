@@ -62,3 +62,82 @@ h1 {
   margin: 24px 0 0;
   color: #aab4c3;
 }
+
+.lab-panel {
+  width: min(1120px, 100%);
+}
+
+.player-shell {
+  margin-top: 28px;
+}
+
+.player-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.player-header h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.25rem, 5vw, 2rem);
+}
+
+.player-eyebrow {
+  margin: 0;
+  color: #9ba7b7;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.episode-label {
+  color: #c8d0da;
+  font-size: 0.9rem;
+}
+
+.video-frame {
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #303743;
+  border-radius: 18px;
+  background: #000;
+}
+
+.video-element {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.player-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+  color: #8693a5;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .lab-shell {
+    padding: 12px;
+  }
+
+  .lab-panel {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .player-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .video-frame {
+    border-radius: 12px;
+  }
+}
