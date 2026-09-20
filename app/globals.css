@@ -808,3 +808,33 @@ h1 {
     width: 118px;
   }
 }
+/* Act 5B.5 D001 — CinePlay local media library */
+.cineplay-shell { min-height: 100vh; padding: 18px; background: #05070a; color: #f5f7fa; }
+.cineplay-library, .cineplay-player-view { width: min(1120px, 100%); margin: 0 auto; }
+.cineplay-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.cineplay-topbar h1 { margin: 2px 0 0; font-size: clamp(1.7rem, 6vw, 2.6rem); }
+.cineplay-local-badge, .cineplay-library-summary { color: #8d99aa; font-size: .76rem; }
+.cineplay-local-badge { padding: 6px 10px; border: 1px solid #303743; border-radius: 999px; }
+.cineplay-section-tabs, .cineplay-season-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 2px; }
+.cineplay-section-tab, .cineplay-season-tab, .cineplay-back { border: 1px solid #303743; background: #0c1016; color: #c8d0da; font: inherit; cursor: pointer; }
+.cineplay-section-tab, .cineplay-season-tab { min-height: 38px; padding: 0 13px; border-radius: 999px; white-space: nowrap; }
+.cineplay-section-tab { display: inline-flex; align-items: center; gap: 8px; }
+.cineplay-section-tab span { display: inline-grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border-radius: 999px; background: #1a2029; font-size: .7rem; }
+.cineplay-section-tab--active, .cineplay-season-tab--active { border-color: #f5f7fa; background: #f5f7fa; color: #05070a; }
+.cineplay-file-list { overflow: hidden; border: 1px solid #232a34; border-radius: 16px; background: #0a0e13; }
+.cineplay-file-row { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; width: 100%; min-height: 68px; align-items: center; gap: 12px; padding: 10px 14px; border: 0; border-bottom: 1px solid #1d242d; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cineplay-file-row:last-child { border-bottom: 0; }
+.cineplay-file-row:hover, .cineplay-file-row:focus-visible { background: #111720; outline: none; }
+.cineplay-file-row:disabled { cursor: default; opacity: .48; }
+.cineplay-file-icon { width: 26px; height: 26px; color: #aab4c3; }
+.cineplay-file-copy { min-width: 0; }
+.cineplay-file-copy strong, .cineplay-file-copy small { display: block; }
+.cineplay-file-copy strong { overflow: hidden; color: #f5f7fa; font-size: .94rem; text-overflow: ellipsis; white-space: nowrap; }
+.cineplay-file-copy small { margin-top: 4px; color: #7f8a9b; font-size: .76rem; }
+.cineplay-open { color: #8d99aa; font-size: .74rem; }
+.cineplay-library-summary { margin-top: 12px; }
+.cineplay-back { min-height: 36px; padding: 0 11px; border-radius: 9px; }
+.cineplay-player-view .cineplay-back { margin-bottom: 10px; }
+.cineplay-empty, .cineplay-error { padding: 18px; border: 1px solid #232a34; border-radius: 14px; background: #0a0e13; color: #8d99aa; }
+.cineplay-error { border-color: rgba(255,120,120,.5); color: #ffd0d0; }
+@media (max-width:640px) { .cineplay-shell { padding: 10px; } .cineplay-topbar { margin-bottom: 14px; } .cineplay-file-list { border-radius: 12px; } .cineplay-file-row { grid-template-columns: 32px minmax(0,1fr) auto; min-height: 64px; gap: 9px; padding: 9px 10px; } .cineplay-file-icon { width: 23px; height: 23px; } }

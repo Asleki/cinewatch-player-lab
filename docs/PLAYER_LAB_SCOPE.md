@@ -1,93 +1,51 @@
-# CineWatch TV Player Lab
+# CineWatch TV Player Lab — Final Scope and Handoff
 
 ## Purpose
 
-This repository is an isolated qualification environment for the
-CineWatch TV Player.
+This repository is the isolated qualification environment for the CineWatch TV Player. It was created so Player behavior could be designed and proven without using the main CineWatch TV repository as an experimentation workspace.
 
-It exists to design, test, and qualify playback behavior before any
-Player implementation is introduced into:
+Main project: https://github.com/Asleki/cinewatch-tv
 
-https://github.com/Asleki/cinewatch-tv
+## Final lab status
 
-The main CineWatch TV repository must not be modified by Player Lab
-experimentation.
+The local Player qualification phase is complete.
 
-## Development Principle
+The lab has proven custom controls, mobile gestures, playback state handling, network/retry behavior, advanced seeking and seek preview, fullscreen, Picture-in-Picture continuity, screenshot capture where browser policy permits, the Remote Playback/Cast UI boundary, local movie playback, local series/season/episode discovery, episodic playback through the same Player, and a server-side live subtitle discovery/acquisition boundary with invalid-payload rejection.
 
-The Player is qualified independently first.
+## Deliberately deferred
 
-The first qualification uses one lawful local test movie and real
-subtitle material.
+The Player Lab does not claim completion of production Cloudflare R2 delivery, CDN/signed playback delivery, HLS packaging, DRM, production Cast receiver playback, CineWatch TV authentication or entitlement, playback-rights authority, production user progress/history, dynamic live subtitle injection, or automatic subtitle synchronization selection.
 
-Only after local Player qualification and remote-delivery
-qualification may integration into CineWatch TV be considered.
+Those belong to CineWatch TV integration and production delivery.
 
-## Player Foundation 001
+## Qualification fixtures
 
-The first Player milestone must eventually qualify:
+The lab uses private/local media fixtures. Media files are intentionally excluded from Git.
 
-- play and pause;
-- seeking;
-- 10-second backward and forward controls;
-- current playback time and duration;
-- volume and mute;
-- fullscreen;
-- Picture-in-Picture where supported;
-- playback speed;
-- subtitle loading;
-- subtitle enable/disable;
-- subtitle switching;
-- subtitle synchronization after seeking;
-- loading state;
-- buffering state;
-- ended state;
-- playback error state;
-- mobile touch behavior;
-- desktop keyboard behavior.
+A qualification fixture proves Player behavior; it does not become production CineWatch content merely because it was used for engineering.
 
-## Architecture Boundary
+## Player architecture boundary
 
-The Player must remain:
+The Player remains media-source agnostic, storage-provider agnostic, title-provider agnostic, subtitle-provider agnostic, manifest-driven, and independent from playback-rights decisions.
 
-- media-source agnostic;
-- storage-provider agnostic;
-- title-provider agnostic;
-- subtitle-provider agnostic;
-- data-driven rather than hard-coded to a single movie.
+```text
+authorized playable manifest
+          ↓
+   CineWatch Player
+```
 
-The local qualification source may later be replaced by an authorized
-Cloudflare R2/CDN playback source without redesigning the Player UI.
+## Episodic rule
 
-## Private Boundary
+Episode arrangement is inventory-driven. The lab must not fabricate missing episodes or silently renumber a partial source set.
 
-The public repository must never contain:
+## Public repository boundary
 
-- qualification movie files;
-- creator media;
-- downloaded private/source subtitle files;
-- API keys;
-- provider credentials;
-- private test evidence;
-- secrets;
-- temporary qualification downloads.
+Never commit qualification video files, creator masters, private subtitle sources, API credentials, private test evidence, secrets, or production storage credentials.
 
-Those belong under the ignored local `private/` boundary or another
-explicitly ignored local path.
+## Handoff rule
 
-## Main Repository Boundary
+The production integration target is CineWatch TV `Stream Now`.
 
-This repository is independent from:
+The CinePlay local-files experience is a lab harness. Its filesystem scanner and qualification routes are not intended to be copied blindly into the CineWatch TV production codebase.
 
-`Asleki/cinewatch-tv`
-
-No Player Lab experiment may directly modify that repository.
-
-## Integration Gate
-
-Player integration into CineWatch TV requires both:
-
-1. Player Foundation qualification.
-2. Remote/R2 delivery qualification.
-
-A successful local demo alone is not sufficient for integration.
+The Player component, its manifest principles, interaction behavior, recovery semantics, and proven qualification lessons are the reusable engineering output.
